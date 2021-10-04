@@ -1,0 +1,73 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: geth-clique
+  labels:
+    app: geth-clique
+spec:
+  serviceName: geth-clique
+  replicas: 1
+  selector:
+    matchLabels:
+      app: geth-clique
+  template:
+    metadata:
+      labels:
+        app: geth-clique
+    spec:
+      terminationGracePeriodSeconds: 10
+      restartPolicy: Always
+      initContainers:
+        - name: geth-clique-genesis
+          image: ethereum/client-go
+          command:
+            - sh
+            - -c
+            - /geth-clique-scripts/check-for-chaindata.sh
+            #- "sleep infinity"
+          envFrom:
+            - configMapRef:
+                name: geth-clique-env
+          volumeMounts:
+            - name: geth-clique-data
+              mountPath: /geth-clique-data
+            - name: geth-clique-scripts
+              mountPath: /geth-clique-scripts
+      containers:
+        - name: geth-clique
+          image: ethereum/client-go
+          command:
+            - geth
+            - --datadir=$(GETH_DATA_DIR)
+            - --cache
+            - "8192"
+          ports:
+            - containerPort: 8545
+              protocol: TCP
+            - containerPort: 8546
+              protocol: TCP
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+            requests:
+              cpu: "1"
+              memory: 2Gi
+          envFrom:
+            - configMapRef:
+                name: geth-clique-env
+          env:
+            - name: GETH_DATA_DIR
+              value: /geth-clique-data
+          volumeMounts:
+            - name: geth-clique-data
+              mountPath: /geth-clique-data
+      volumes:
+        - name: geth-clique-data
+          persistentVolumeClaim:
+            claimName: geth-clique-data
+        - name: geth-clique-scripts
+          configMap:
+            name: geth-clique-scripts
+            defaultMode: 0777
